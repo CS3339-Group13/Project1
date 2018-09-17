@@ -92,20 +92,22 @@ class Dissassemble:
             (1986, 1986): 'D'
         }
 
-    def get_opcode_dec(self):
-        self.opcode_dec = [(0xFFE00000 & i) >> 21 for i in self.inst_dec]
+    @staticmethod
+    def get_opcode_dec(inst_dec):
+        return (0xFFE00000 & inst_dec) >> 21
 
     def process_instructions(self):
-        # loop through all opcodes and instructions...
-        for o, i in zip(self.opcode_dec, self.inst_dec):
-            # ...compare with opcodes in dict
-            for (low, high) in self.opcode_dict.keys():
-                # if opcode is in the range
-                if low <= o <= high:
-                    # get instruction type based on opcode from dict
-                    inst_type = self.opcode_dict[(low, high)]
-                    # get and execute correct function to process i
-                    getattr(self, 'process_' + inst_type)(i)
+        for i in self.inst_dec:
+            # calculate and add opcodes to list
+            opcode_dec = self.get_opcode_dec(i)
+            self.opcode_dec.append(opcode_dec)
+
+            # loop through known opcodes
+            for (low, high), inst_type in self.opcode_dict.items():
+                # call appropriate instruction type function
+                if low <= opcode_dec <= high:
+                    f = getattr(self, 'process_' + inst_type)
+                    f(i)
 
     @staticmethod
     def process_R(inst_dec):
@@ -132,8 +134,6 @@ class Dissassemble:
 
         with open(filename) as f:
             self.inst_dec = [int(line.rstrip('\n'), 2) for line in f]
-
-        self.get_opcode_dec()
 
         # print(self.inst_dec)      #debug to console
         # print(self.opcode_dec)     #debug to console
