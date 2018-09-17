@@ -40,23 +40,63 @@
 # 8         19          5
 
 
-class Disassembler:
+##
+# command line decode
+# for i in range(len(sys.argv)):
+#    if (sys.argv[i] == '-i' and i < (len(sys.argv) - 1)):
+#        inputFileName = sys.argv[i + 1]
+#        print inputFileName
+#   elif (sys.argv[i] == '-o' and i < (len(sys.argv) - 1)):
+#        outputFileName = sys.argv[i + 1]
+##
 
-    # |0000 0000 000|0 0000 0000 0000 0000 0000
-    @staticmethod
-    def get_opcode(inst):
-        return (0xFFE00000 & inst) >> 21
+##
+# rnMask = 0x3E0  # 1st argument ARM Rn
+# rmMask = 0x1F0000  # second argument ARM Rm
+# rdMask = 0x1F  # destination ARM Rd
+# imMask = 0x3FFC00  # ARM I Immediate
+# shmtMask = 0xFC00  # ARM ShAMT
+# addrMask = 0x1FF000  # ARM address for ld and st
+# addr2Mask = 0xFFFFE0  # addr for CB format
+# imsftMask = 0x600000  # shift for IM format
+# imdataMask = 0x1FFFe0  # data for IM type
+# # last5Mask - 0x7C0
+##
+
+
+class Dissassemble:
+
+    def __init__(self):
+        self.opcode_dec = []
+        self.args_dec = []      # list of tuples containing args
+        self.data_dec = []      # list of data values
+        self.instr_dec = []
+
+    def get_opcode_dec(self):
+        self.opcode_dec = [(0xFFE00000 & i) >> 21 for i in self.instr_dec]
 
     def run(self):
         filename = 'test2_bin.txt'
 
         with open(filename) as f:
-            lines = [int(line.rstrip('\n'), 2) for line in f]
+            self.instr_dec = [int(line.rstrip('\n'), 2) for line in f]
 
-        for line in lines:
-            print(self.get_opcode(line))
+        self.get_opcode_dec()
+
+        print(self.instr_dec)
+        print(self.opcode_dec)
+
+        self.output()
+
+    def output(self):
+        with open('team13_out_dis.txt', 'w') as f:
+            for i in self.instr_dec:
+                f.write('{}\n'.format(i))
 
 
-d = Disassembler()
-d.run()
+if __name__ == "__main__":
+
+    d = Dissassemble()
+    d.run()
+
 
