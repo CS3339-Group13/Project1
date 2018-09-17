@@ -83,8 +83,8 @@ class Dissassemble:
 
         self.get_opcode_dec()
 
-        print(self.instr_dec)
-        print(self.opcode_dec)
+        print(self.instr_dec)      #debug to console
+        print(self.opcode_dec)     #debug to console
 
         self.output()
 
@@ -92,6 +92,7 @@ class Dissassemble:
         with open('team13_out_dis.txt', 'w') as f:
             for i in self.instr_dec:
                 f.write('{}\n'.format(i))
+        
 
 
 if __name__ == "__main__":
