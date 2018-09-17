@@ -10,8 +10,8 @@
 # CBNZ        | 10110101    | 8         |  1448    | 1455     | CB
 # SUB         | 11001011000 | 11        |  1624    |          | R
 # SUBI        | 1101000100  | 10        |  1672    | 1673     | I
-# MOVZ        | 110100101   | 9         |  1648    | 1687     | IM
-# MOVK        | 111100101   | 9         |  1940    | 1943     | IM
+# MOVZ        | 110100101   | 9         |  1648    | 1687     | I
+# MOVK        | 111100101   | 9         |  1940    | 1943     | I
 # LSR         | 11010011010 | 11        |  1690    |          | R
 # LSL         | 11010011011 | 11        |  1691    |          | R
 # STUR        | 11111000000 | 11        |  1984    |          | D
@@ -63,6 +63,8 @@
 # # last5Mask - 0x7C0
 ##
 
+# CONSIDER INVALID INSTRUCTIONS - output sys error of some sort, say what the invalid instruction was, what line, etc
+
 
 class Dissassemble:
 
@@ -70,34 +72,83 @@ class Dissassemble:
         self.opcode_dec = []
         self.args_dec = []      # list of tuples containing args
         self.data_dec = []      # list of data values
-        self.instr_dec = []
+        self.inst_dec = []
+
+        self.opcode_dict = {
+            (160, 191)  : 'B',
+            (1104, 1104): 'R',
+            (1112, 1112): 'R',
+            (1160, 1161): 'I',
+            (1360, 1360): 'R',
+            (1440, 1447): 'CB',
+            (1448, 1455): 'CB',
+            (1624, 1624): 'R',
+            (1672, 1673): 'I',
+            (1648, 1687): 'I',
+            (1940, 1943): 'I',
+            (1690, 1690): 'R',
+            (1691, 1691): 'R',
+            (1984, 1984): 'R',
+            (1986, 1986): 'D'
+        }
 
     def get_opcode_dec(self):
-        self.opcode_dec = [(0xFFE00000 & i) >> 21 for i in self.instr_dec]
+        self.opcode_dec = [(0xFFE00000 & i) >> 21 for i in self.inst_dec]
+
+    def process_instructions(self):
+        # loop through all opcodes and instructions...
+        for o, i in zip(self.opcode_dec, self.inst_dec):
+            # ...compare with opcodes in dict
+            for (low, high) in self.opcode_dict.keys():
+                # if opcode is in the range
+                if low <= o <= high:
+                    # get instruction type based on opcode from dict
+                    inst_type = self.opcode_dict[(low, high)]
+                    # get and execute correct function to process i
+                    getattr(self, 'process_' + inst_type)(i)
+
+    @staticmethod
+    def process_R(inst_dec):
+        print('R')
+
+    @staticmethod
+    def process_D(inst_dec):
+        print('D')
+
+    @staticmethod
+    def process_I(inst_dec):
+        print('I')
+
+    @staticmethod
+    def process_B(inst_dec):
+        print('B')
+
+    @staticmethod
+    def process_CB(inst_dec):
+        print('CB')
 
     def run(self):
         filename = 'test2_bin.txt'
 
         with open(filename) as f:
-            self.instr_dec = [int(line.rstrip('\n'), 2) for line in f]
+            self.inst_dec = [int(line.rstrip('\n'), 2) for line in f]
 
         self.get_opcode_dec()
 
-        print(self.instr_dec)      #debug to console
-        print(self.opcode_dec)     #debug to console
+        # print(self.inst_dec)      #debug to console
+        # print(self.opcode_dec)     #debug to console
+        #
+        # self.output()
 
-        self.output()
+        self.process_instructions()
 
     def output(self):
         with open('team13_out_dis.txt', 'w') as f:
-            for i in self.instr_dec:
+            for i in self.inst_dec:
                 f.write('{}\n'.format(i))
-        
 
 
 if __name__ == "__main__":
 
     d = Dissassemble()
     d.run()
-
-
