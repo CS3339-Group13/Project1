@@ -64,8 +64,8 @@
 ##
 
 # CONSIDER INVALID INSTRUCTIONS - output sys error of some sort, say what the invalid instruction was, what line, etc
-
-
+# NEED TO CLEAR BITS - in process_I specifically immediate bits are not completely cleared when back to back
+# B format mask needs work
 class Dissassemble:
 
     def __init__(self):
@@ -73,6 +73,7 @@ class Dissassemble:
         self.args_dec = []      # list of tuples containing args
         self.data_dec = []      # list of data values
         self.inst_dec = []
+        PC_counter = 96
 
         self.opcode_dict = {
             (160, 191)  : 'B',
@@ -92,6 +93,64 @@ class Dissassemble:
             (1986, 1986): 'D'
         }
 
+        self.operation_dict = {
+            (1112): 'ADD',
+            (1624): 'SUB'
+        }
+
+
+
+        # R
+        # opcode    Rm  shamt   Rn  Rd
+        # 11        5   6       5   5
+        self.R_format = {
+            'opcode': [],
+            'Rm': [],
+            'shamt': [],
+            'Rn': [],
+            'Rd': []
+        }
+
+        # B
+        # opcode    address
+        # 6         26
+        self.B_format = {
+            'opcode': [],
+            'addr': []
+        }
+
+        # I
+        # opcode    immediate   Rn  Rd
+        # 10        12          5   5
+        self.I_format = {
+            'opcode': [],
+            'imm': [],
+            'Rn': [],
+            'Rd': []
+        }
+
+
+        # D
+        # opcode    address op2 Rn  Rt
+        # 11        9       2   5   5
+        self.D_format = {
+            'opcode': [],
+            'addr': [],
+            'op2': [],
+            'Rn': [],
+            'Rt': []
+        }
+
+        # CB
+        # opcode    address     Rt
+        # 8         19          5
+        self.CB_format = {
+            'opcode': [],
+            'addr': [],
+            'Rt': []
+        }
+
+
     @staticmethod
     def get_opcode_dec(inst_dec):
         return (0xFFE00000 & inst_dec) >> 21
@@ -107,27 +166,87 @@ class Dissassemble:
                 # call appropriate instruction type function
                 if low <= opcode_dec <= high:
                     f = getattr(self, 'process_' + inst_type)
-                    f(i)
+                    f(self, i)
 
-    @staticmethod
-    def process_R(inst_dec):
-        print('R')
 
+    # R
+    # opcode    Rm  shamt   Rn  Rd
+    # 11        5   6       5   5
     @staticmethod
-    def process_D(inst_dec):
-        print('D')
+    def process_R(self, inst_dec):
+        opcode = (0xFFE00000 & inst_dec) >> 21
+        self.R_format['Rm'] = ((0x1F0000 & inst_dec) >> 16)
+        self.R_format['shamt'] = ((0xFC00 & inst_dec) >> 10)
+        self.R_format['Rn'] = ((0x3E0 & inst_dec) >> 5)
+        self.R_format['Rd'] = (0x1F & inst_dec)
 
-    @staticmethod
-    def process_I(inst_dec):
-        print('I')
+        print('R ', self.operation_dict.get(opcode),
+              'Rd', self.R_format['Rd'],
+              'Rn', self.R_format['Rn'],
+              'shamt', self.R_format['shamt'],
+              'rm', self.R_format['Rm'],
+            )
 
+    # D
+    # opcode    address op2 Rn  Rt
+    # 11        9       2   5   5
     @staticmethod
-    def process_B(inst_dec):
-        print('B')
+    def process_D(self, inst_dec):
+        opcode = (0xFFE00000 & inst_dec) >> 21
+        self.D_format['addr'] = ((0x1FF000 & inst_dec) >> 12)
+        self.D_format['op2'] = ((0x200 & inst_dec) >> 10)
+        self.D_format['Rn'] = ((0x2E0 & inst_dec) >> 5)
+        self.D_format['Rt'] = (0x1F & inst_dec)
 
+        print('D', self.operation_dict.get(opcode),
+              'addr', self.D_format['addr'],
+              'op2', self.D_format['op2'],
+              'Rn', self.D_format['Rn'],
+              'Rt', self.D_format['Rt']
+              )
+
+    # I
+    # opcode    immediate   Rn  Rd
+    # 10        12          5   5
     @staticmethod
-    def process_CB(inst_dec):
-        print('CB')
+    def process_I(self, inst_dec):
+        opcode = (0xFFE00000 & inst_dec) >> 21
+        self.I_format['imm'] = ((0x3FFC00 & inst_dec) >> 10)
+        self.I_format['Rn'] = ((0x2E0 & inst_dec) >> 5)
+        self.I_format['Rd'] = (0x1F & inst_dec)
+
+
+        print('I', self.operation_dict.get(opcode),
+              'imm', self.I_format['imm'],
+              'Rn', self.I_format['Rn'],
+              'Rd', self.I_format['Rd']
+              )
+
+    # B
+    # opcode    address
+    # 6         26
+    @staticmethod
+    def process_B(self, inst_dec):
+        opcode = (0xFC000000 & inst_dec) >> 26
+        self.B_format['addr'] = (0x4000000 & inst_dec)
+
+        print('B', self.operation_dict.get(opcode),
+              'addr', self.B_format['addr']
+              )
+
+    # CB
+    # opcode    address     Rt
+    # 8         19          5
+    @staticmethod
+    def process_CB(self, inst_dec):
+        opcode = (0xFC000000 & inst_dec) >> 24
+        self.CB_format['addr'] = ((0xFFFFE0 & inst_dec) >> 5)
+        self.CB_format['Rt'] = (0x1F & inst_dec)
+
+        print('CB', self.operation_dict.get(opcode),
+              'addr', self.CB_format['addr'],
+              'Rt', self.CB_format['Rt']
+              )
 
     def run(self):
         filename = 'test2_bin.txt'
@@ -138,17 +257,24 @@ class Dissassemble:
         # print(self.inst_dec)      #debug to console
         # print(self.opcode_dec)     #debug to console
         #
-        # self.output()
+
 
         self.process_instructions()
+
+        self.output()
+
 
     def output(self):
         with open('team13_out_dis.txt', 'w') as f:
             for i in self.inst_dec:
-                f.write('{}\n'.format(i))
+                bin_value = "{0:032b}".format(i)
+                f.write('{}\n'.format(bin_value))
+            f.close()
 
 
 if __name__ == "__main__":
 
     d = Dissassemble()
     d.run()
+
+
