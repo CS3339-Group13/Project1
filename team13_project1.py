@@ -17,7 +17,7 @@
 # STUR        | 11111000000 | 11        |  1984    |          | D
 # LDUR        | 11111000010 | 11        |  1986    |          | D
 #
-# BREAK         1 11111 10110 11110 11111 11111 100111 ???
+# BREAK         1 11111 10110 11110 11111 11111 100111
 
 # R
 # opcode    Rm  shamt   Rn  Rd
@@ -66,7 +66,7 @@
 # CONSIDER INVALID INSTRUCTIONS - output sys error of some sort, say what the invalid instruction was, what line, etc
 
 
-class Dissassemble:
+class Disassemble:
 
     def __init__(self):
         self.opcode_dec = []
@@ -84,63 +84,88 @@ class Dissassemble:
             (1448, 1455): 'CB',
             (1624, 1624): 'R',
             (1672, 1673): 'I',
+
+            # these two have overlapping ranges as per the assignment sheet, so sometimes an instruction gets counted
+            # twice. I have emailed Greg asking about it
             (1648, 1687): 'I',
             (1940, 1943): 'I',
+
             (1690, 1690): 'R',
             (1691, 1691): 'R',
             (1984, 1984): 'R',
-            (1986, 1986): 'D'
+            (1986, 1986): 'D',
+            (2038, 2038): 'BREAK'
         }
 
-    @staticmethod
-    def get_opcode_dec(inst_dec):
-        return (0xFFE00000 & inst_dec) >> 21
-
-    def process_instructions(self):
-        for i in self.inst_dec:
-            # calculate and add opcodes to list
-            opcode_dec = self.get_opcode_dec(i)
-            self.opcode_dec.append(opcode_dec)
-
-            # loop through known opcodes
-            for (low, high), inst_type in self.opcode_dict.items():
-                # call appropriate instruction type function
-                if low <= opcode_dec <= high:
-                    f = getattr(self, 'process_' + inst_type)
-                    f(i)
-
-    @staticmethod
-    def process_R(inst_dec):
-        print('R')
-
-    @staticmethod
-    def process_D(inst_dec):
-        print('D')
-
-    @staticmethod
-    def process_I(inst_dec):
-        print('I')
-
-    @staticmethod
-    def process_B(inst_dec):
-        print('B')
-
-    @staticmethod
-    def process_CB(inst_dec):
-        print('CB')
-
     def run(self):
-        filename = 'test2_bin.txt'
+        self.read_file('test2_bin.txt')
 
+        self.process_instructions()
+
+    def read_file(self, filename):
         with open(filename) as f:
             self.inst_dec = [int(line.rstrip('\n'), 2) for line in f]
 
-        # print(self.inst_dec)      #debug to console
-        # print(self.opcode_dec)     #debug to console
-        #
-        # self.output()
+    def process_instructions(self):
+        data = False
+        for c, i in enumerate(self.inst_dec):
+            if not data:
+                # calculate and add opcodes to list
+                opcode_dec = self.get_bits_range(31, 21, i)
+                self.opcode_dec.append(opcode_dec)
 
-        self.process_instructions()
+                # loop through known opcodes
+                for (low, high), inst_type in self.opcode_dict.items():
+                    # call appropriate instruction type function
+                    if low <= opcode_dec <= high:
+                        f = getattr(self, 'process_' + inst_type)
+                        f(i)
+
+                if i == int('0xFEDEFFE7', 16):
+                    data = True
+                    continue
+            else:
+                print(self.tc_to_dec('{0:032b}'.format(i)))
+
+    @staticmethod
+    def tc_to_dec(bin_str):
+        dec = int(bin_str, 2)
+        # if positive, just convert to decimal
+        if bin_str[0] == 0:
+            return dec
+        # if negative, flip bits and add 1, then multiply decimal by -1
+        else:
+            return -1 * ((dec ^ 0xFFFFFFFF) + 1)
+
+    @staticmethod
+    def get_bits_range(high, low, inst):
+        mask_str = '0' * (31 - high) + '1' * (high - low + 1) + '0' * low
+        mask_int = int(mask_str, 2)
+        return (inst & mask_int) >> low
+
+    @staticmethod
+    def process_R(inst_dec):
+        print('{0:032b}\t{0:d}\tR'.format(inst_dec))
+
+    @staticmethod
+    def process_D(inst_dec):
+        print('{0:032b}\t{0:d}\tD'.format(inst_dec))
+
+    @staticmethod
+    def process_I(inst_dec):
+        print('{0:032b}\t{0:d}\tI'.format(inst_dec))
+
+    @staticmethod
+    def process_B(inst_dec):
+        print('{0:032b}\t{0:d}\tB'.format(inst_dec))
+
+    @staticmethod
+    def process_CB(inst_dec):
+        print('{0:032b}\t{0:d}\tCB'.format(inst_dec))
+
+    @staticmethod
+    def process_BREAK(inst_dec):
+        print('{0:032b}\t{0:d}\tBREAK'.format(inst_dec))
 
     def output(self):
         with open('team13_out_dis.txt', 'w') as f:
@@ -149,6 +174,5 @@ class Dissassemble:
 
 
 if __name__ == "__main__":
-
-    d = Dissassemble()
+    d = Disassemble()
     d.run()
