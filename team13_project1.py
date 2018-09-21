@@ -10,35 +10,13 @@
 # CBNZ        | 10110101    | 8         |  1448    | 1455     | CB
 # SUB         | 11001011000 | 11        |  1624    |          | R
 # SUBI        | 1101000100  | 10        |  1672    | 1673     | I
-# MOVZ        | 110100101   | 9         |  1648    | 1687     | I
-# MOVK        | 111100101   | 9         |  1940    | 1943     | I
+# MOVZ        | 110100101   | 9         |  1684    | 1687     | IM
+# MOVK        | 111100101   | 9         |  1940    | 1943     | IM
 # LSR         | 11010011010 | 11        |  1690    |          | R
 # LSL         | 11010011011 | 11        |  1691    |          | R
 # STUR        | 11111000000 | 11        |  1984    |          | D
 # LDUR        | 11111000010 | 11        |  1986    |          | D
-#
 # BREAK         1 11111 10110 11110 11111 11111 100111
-
-# R
-# opcode    Rm  shamt   Rn  Rd
-# 11        5   6       5   5
-
-# D
-# opcode    address op2 Rn  Rt
-# 11        9       2   5   5
-
-# I
-# opcode    immediate   Rn  Rd
-# 10        12          5   5
-
-# B
-# opcode    address
-# 6         26
-
-# CB
-# opcode    address     Rt
-# 8         19          5
-
 
 ##
 # command line decode
@@ -50,82 +28,72 @@
 #        outputFileName = sys.argv[i + 1]
 ##
 
-##
-# rnMask = 0x3E0  # 1st argument ARM Rn
-# rmMask = 0x1F0000  # second argument ARM Rm
-# rdMask = 0x1F  # destination ARM Rd
-# imMask = 0x3FFC00  # ARM I Immediate
-# shmtMask = 0xFC00  # ARM ShAMT
-# addrMask = 0x1FF000  # ARM address for ld and st
-# addr2Mask = 0xFFFFE0  # addr for CB format
-# imsftMask = 0x600000  # shift for IM format
-# imdataMask = 0x1FFFe0  # data for IM type
-# # last5Mask - 0x7C0
-##
-
 # CONSIDER INVALID INSTRUCTIONS - output sys error of some sort, say what the invalid instruction was, what line, etc
 
 
 class Disassemble:
+    inst_spacing = [0, 8, 11, 16, 21, 26, 32]
 
     def __init__(self):
         self.opcode_dec = []
         self.args_dec = []      # list of tuples containing args
         self.data_dec = []      # list of data values
-        self.inst_dec = []
+        self.lines_dec = []
+        self.address_start = 96
 
         self.opcode_dict = {
-            (160, 191)  : 'B',
-            (1104, 1104): 'R',
-            (1112, 1112): 'R',
-            (1160, 1161): 'I',
-            (1360, 1360): 'R',
-            (1440, 1447): 'CB',
-            (1448, 1455): 'CB',
-            (1624, 1624): 'R',
-            (1672, 1673): 'I',
-
-            # these two have overlapping ranges as per the assignment sheet, so sometimes an instruction gets counted
-            # twice. I have emailed Greg asking about it
-            (1648, 1687): 'I',
-            (1940, 1943): 'I',
-
-            (1690, 1690): 'R',
-            (1691, 1691): 'R',
-            (1984, 1984): 'R',
-            (1986, 1986): 'D',
-            (2038, 2038): 'BREAK'
+            (160, 191)  : ['B', 'B'],
+            (1104, 1104): ['R', 'AND'],
+            (1112, 1112): ['R', 'ADD'],
+            (1160, 1161): ['I', 'ADDI'],
+            (1360, 1360): ['R', 'ORR'],
+            (1440, 1447): ['CB', 'CBZ'],
+            (1448, 1455): ['CB', 'CBNZ'],
+            (1624, 1624): ['R', 'SUB'],
+            (1672, 1673): ['I', 'SUBI'],
+            (1684, 1687): ['IM', 'MOVZ'],
+            (1940, 1943): ['IM', 'MOVK'],
+            (1690, 1690): ['R', 'LSR'],
+            (1691, 1691): ['R', 'LSL'],
+            (1984, 1984): ['D', 'STUR'],
+            (1986, 1986): ['D', 'LDUR'],
+            (2038, 2038): ['BREAK', 'BREAK']
         }
 
     def run(self):
-        self.read_file('test2_bin.txt')
+        self.__read_file('custom_input.txt')
 
-        self.process_instructions()
+        self.__process_instructions()
 
-    def read_file(self, filename):
+    def __read_file(self, filename):
         with open(filename) as f:
-            self.inst_dec = [int(line.rstrip('\n'), 2) for line in f]
+            self.lines_dec = [int(line.rstrip('\n'), 2) for line in f]
 
-    def process_instructions(self):
+    def __process_instructions(self):
         data = False
-        for c, i in enumerate(self.inst_dec):
+        address = self.address_start
+        for c, i in enumerate(self.lines_dec):
             if not data:
+                print(Disassemble.get_bin_spaced(i) + '\t' + str(address) + '\t', end='')
+
                 # calculate and add opcodes to list
                 opcode_dec = self.get_bits_range(31, 21, i)
                 self.opcode_dec.append(opcode_dec)
 
                 # loop through known opcodes
-                for (low, high), inst_type in self.opcode_dict.items():
+                for (low, high), inst_info in self.opcode_dict.items():
                     # call appropriate instruction type function
                     if low <= opcode_dec <= high:
-                        f = getattr(self, 'process_' + inst_type)
-                        f(i)
+                        f = getattr(self, 'process_' + inst_info[0])
+                        print(f(i, inst_info[1]))
 
                 if i == int('0xFEDEFFE7', 16):
                     data = True
-                    continue
             else:
-                print(self.tc_to_dec('{0:032b}'.format(i)))
+                bin_str = '{0:032b}'.format(i)
+                print('{}\t{}\t{}'.format(bin_str, address, Disassemble.tc_to_dec(bin_str)))
+
+            address += 4
 
     @staticmethod
     def tc_to_dec(bin_str):
@@ -144,32 +112,85 @@ class Disassemble:
         return (inst & mask_int) >> low
 
     @staticmethod
-    def process_R(inst_dec):
-        print('{0:032b}\t{0:d}\tR'.format(inst_dec))
+    def get_bin_spaced(inst_dec):
+        inst_bin = '{0:032b}'.format(inst_dec)
+        inst_spaced = ''
+        for start, stop in zip(Disassemble.inst_spacing, Disassemble.inst_spacing[1:]):
+            inst_spaced += inst_bin[start:stop] + ' '
+        return inst_spaced
+
+    # opcode    Rm  shamt   Rn  Rd
+    # 11        5   6       5   5
+    @staticmethod
+    def process_R(inst_dec, inst_name):
+        opcode = Disassemble.get_bits_range(31, 21, inst_dec)
+        Rm = Disassemble.get_bits_range(20, 16, inst_dec)
+        shamt = Disassemble.get_bits_range(15, 10, inst_dec)
+        Rn = Disassemble.get_bits_range(9, 5, inst_dec)
+        Rd = Disassemble.get_bits_range(4, 0, inst_dec)
+
+        if inst_name == 'LSL' or inst_name == 'LSR':
+            inst_str = '{}\tR{}, R{}, R{}'.format(inst_name, Rd, Rn, shamt)
+        else:
+            inst_str = '{}\tR{}, R{}, R{}'.format(inst_name, Rd, Rn, Rm)
+
+        return inst_str
+
+    # opcode    offset  op2 Rn  Rt
+    # 11        9       2   5   5
+    @staticmethod
+    def process_D(inst_dec, inst_name):
+        # opcode = Disassemble.get_bits_range(31, 21, inst_dec)
+        offset = Disassemble.get_bits_range(20, 12, inst_dec)
+        # op2 = Disassemble.get_bits_range(11, 10, inst_dec)
+        Rn = Disassemble.get_bits_range(9, 5, inst_dec)
+        Rt = Disassemble.get_bits_range(4, 0, inst_dec)
+        return '{}\tR{}, [R{}, #{}]'.format(inst_name, Rt, Rn, offset)
+
+    # opcode    immediate   Rn  Rd
+    # 10        12          5   5
+    @staticmethod
+    def process_I(inst_dec, inst_name):
+        # opcode = Disassemble.get_bits_range(31, 22, inst_dec)
+        immediate = Disassemble.get_bits_range(21, 10, inst_dec)
+        Rn = Disassemble.get_bits_range(9, 5, inst_dec)
+        Rd = Disassemble.get_bits_range(4, 0, inst_dec)
+        return '{}\tR{}, R{}, #{}'.format(inst_name, Rd, Rn, immediate)
+
+    # opcode    address
+    # 6         26
+    @staticmethod
+    def process_B(inst_dec, inst_name):
+        # opcode = Disassemble.get_bits_range(31, 24, inst_dec)
+        address = Disassemble.get_bits_range(23, 0, inst_dec)
+        return '{}\t#{}'.format(inst_name, address)
+
+    # opcode    offset      Rt
+    # 8         19          5
+    @staticmethod
+    def process_CB(inst_dec, inst_name):
+        # opcode = Disassemble.get_bits_range(31, 24, inst_dec)
+        offset = Disassemble.get_bits_range(23, 5, inst_dec)
+        Rt = Disassemble.get_bits_range(4, 0, inst_dec)
+        return '{}\tR{}, R{}'.format(inst_name, Rt, offset)
+
+    # opcode        immediate   Rd
+    # 9         2   18          5
+    @staticmethod
+    def process_IM(inst_dec, inst_name):
+        # opcode = Disassemble.get_bits_range(31, 23, inst_dec)
+        shift = Disassemble.get_bits_range(22, 21, inst_dec)
+        immediate = Disassemble.get_bits_range(20, 5, inst_dec)
+        Rd = Disassemble.get_bits_range(4, 0, inst_dec)
+        return '{}\tR{}, {}, LSL {}'.format(inst_name, Rd, immediate, shift * 16)
 
     @staticmethod
-    def process_D(inst_dec):
-        print('{0:032b}\t{0:d}\tD'.format(inst_dec))
+    def process_BREAK(inst_dec, inst_name):
+        return inst_name
 
-    @staticmethod
-    def process_I(inst_dec):
-        print('{0:032b}\t{0:d}\tI'.format(inst_dec))
-
-    @staticmethod
-    def process_B(inst_dec):
-        print('{0:032b}\t{0:d}\tB'.format(inst_dec))
-
-    @staticmethod
-    def process_CB(inst_dec):
-        print('{0:032b}\t{0:d}\tCB'.format(inst_dec))
-
-    @staticmethod
-    def process_BREAK(inst_dec):
-        print('{0:032b}\t{0:d}\tBREAK'.format(inst_dec))
-
-    def output(self):
+    def __output(self):
         with open('team13_out_dis.txt', 'w') as f:
-            for i in self.inst_dec:
+            for i in self.lines_dec:
                 f.write('{}\n'.format(i))
 
 
