@@ -170,7 +170,7 @@ class Disassemble:
 
         # Return proper assembly instruction
         if inst_name == 'LSL' or inst_name == 'LSR':
-            inst_str = '{}\tR{}, R{}, {}'.format(inst_name, Rd, Rn, shamt)
+            inst_str = '{}\tR{}, R{}, #{}'.format(inst_name, Rd, Rn, shamt)
         else:
             inst_str = '{}\tR{}, R{}, R{}'.format(inst_name, Rd, Rn, Rm)
 
