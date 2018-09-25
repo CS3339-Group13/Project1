@@ -1,41 +1,25 @@
-# Instruction | OPCODE      | OP Size   | 11 bit OPCODE range | Instruction
-#             |             | (base 10) | Start    | End      | Format
-# ------------|-------------|-----------|----------|----------|-------------
-# B           | 000101      | 6         |  160     | 191      | B
-# AND         | 10001010000 | 11        |  1104    |          | R
-# ADD         | 10001011000 | 11        |  1112    |          | R
-# ADDI        | 1001000100  | 10        |  1160    | 1161     | I
-# ORR         | 10101010000 | 11        |  1360    |          | R
-# EOR         | 11101010000 | 11        |  1616    |          | R
-# CBZ         | 10110100    | 8         |  1440    | 1447     | CB
-# CBNZ        | 10110101    | 8         |  1448    | 1455     | CB
-# SUB         | 11001011000 | 11        |  1624    |          | R
-# SUBI        | 1101000100  | 10        |  1672    | 1673     | I
-# MOVZ        | 110100101   | 9         |  1684    | 1687     | IM
-# MOVK        | 111100101   | 9         |  1940    | 1943     | IM
-# LSR         | 11010011010 | 11        |  1690    |          | R
-# LSL         | 11010011011 | 11        |  1691    |          | R
-# STUR        | 11111000000 | 11        |  1984    |          | D
-# LDUR        | 11111000010 | 11        |  1986    |          | D
-# BREAK         1 11111 10110 11110 11111 11111 100111
-
-# CONSIDER INVALID INSTRUCTIONS - output sys error of some sort, say what the invalid instruction was, what line, etc
-from __future__ import print_function
 import sys
 
 
 class Disassemble:
+    # bit groupings for printing a spaced out instruction
     inst_spacing = [0, 8, 11, 16, 21, 26, 32]
+    break_inst = 0xFEDEFFE7
 
     def __init__(self, input_file, output_file):
-        self.input_file = input_file
-        self.output_file = output_file
+        self.__input_file = input_file
+        self.__output_file = output_file
 
-        self.processed_inst = {}
-        self.processed_data = {}
+        # Holds information about instructions
+        # mem_address : {dict with name, opcode, fields...}
+        self.__processed_inst = {}
 
-        self.lines_dec = []     # holds raw line in decimal
-        self.address = 96
+        # Holds information about data
+        # mem_address : decimal value
+        self.__processed_data = {}
+
+        self.__lines_dec = []     # Holds raw lines in decimal
+        self.__address = 96       # Memory starting address
 
         self.opcode_dict = {
             (0, 0)      : ['NOP', 'NOP'],
@@ -46,7 +30,8 @@ class Disassemble:
             (1360, 1360): ['R', 'ORR'],
             (1440, 1447): ['CB', 'CBZ'],
             (1448, 1455): ['CB', 'CBNZ'],
-            (1616, 1616): ['R', 'EOR'],
+            # (1616, 1616): ['R', 'EOR'], # EOR opcode from book, wrong?
+            (1872, 1872): ['R', 'EOR'],
             (1624, 1624): ['R', 'SUB'],
             (1672, 1673): ['I', 'SUBI'],
             (1684, 1687): ['IM', 'MOVZ'],
@@ -59,87 +44,122 @@ class Disassemble:
         }
 
     def run(self):
+        """
+        Calls all necessary functions to perform the disassembly
+        """
         try:
             self.__read_file()
-            self.__process_instructions()
+            self.__process_lines()
         except ValueError as ve:
-            print(ve, file=sys.stderr)
+            print >> sys.stderr, ve
 
     def __read_file(self):
+        """
+        Reads the designated input file and stores each line as a decimal integer
+        """
         line_num = 0
-        with open(self.input_file) as f:
+        with open(self.__input_file) as f:
             for line in f:
                 line = line.rstrip('\n')
                 line_num += 1
                 if len(line) != 32:
                     raise ValueError('Invalid instruction on line {}: \'{}\''.format(line_num, line))
-                self.lines_dec.append(int(line, 2))
+                self.__lines_dec.append(int(line, 2))
 
-    def __process_instructions(self):
-        out = open(self.output_file + '_dis.txt', 'w')
+    def __process_lines(self):
+        """
+        Loops through each decimal line value and calls the function to process it as an instruction or as data
+        """
+        out_file = open(self.__output_file + '_dis.txt', 'w')
         data = False
-        for line_num, line in enumerate(self.lines_dec):
+
+        for line_num, line in enumerate(self.__lines_dec):
             valid = False
             if not data:
-                out.write(Disassemble.get_bin_spaced(line) + '\t' + str(self.address) + '\t')
+                out_file.write(Disassemble.get_bin_spaced(line) + '\t' + str(self.__address) + '\t')
 
-                # calculate and add opcodes to list
                 opcode_dec = self.get_bits_range(31, 21, line)
 
-                # loop through known opcodes
+                # Loop through all known opcodes
                 for (low, high), inst_info in self.opcode_dict.items():
-                    # call appropriate instruction type function
+                    # Once correct range found, call appropriate function
                     if low <= opcode_dec <= high:
                         valid = True
-                        f = getattr(self, 'process_' + inst_info[0])
-                        out.write(f(line, inst_info[1]) + '\n')
+                        f = getattr(self, '_Disassemble__process_' + inst_info[0].lower())
+                        out_file.write(f(line, inst_info[1]) + '\n')
 
                 if not valid:
                     raise ValueError('Invalid instruction on line {}: \'{}\''.format(line_num, line))
 
-                if line == int('0xFEDEFFE7', 16):
+                # Set data flag to True when BREAK is reached
+                if line == self.break_inst:
                     data = True
 
             else:
-                out.write(self.process_data(line) + '\n')
+                out_file.write(self.__process_data(line) + '\n')
 
-            self.address += 4
+            self.__address += 4
 
     @staticmethod
     def tc_to_dec(bin_str):
+        """
+        Converts a two's complement binary string into a decimal integer
+        :param bin_str: A two's complement binary string
+        :return: The corresponding decimal integer
+        """
         dec = int(bin_str, 2)
-        # if positive, just convert to decimal
+        # If positive, just convert to decimal
         if bin_str[0] == '0':
             return dec
-        # if negative, flip bits and add 1, then multiply decimal by -1
+        # If negative, flip bits and add 1, then multiply decimal by -1
         else:
             mask_str = '1' * len(bin_str)
             return -1 * ((dec ^ int(mask_str, 2)) + 1)
 
     @staticmethod
-    def get_bits_range(high, low, inst):
+    def get_bits_range(high, low, b):
+        """
+        Extracts a range of bits from a binary string as a decimal integer
+        :param high: The leftmost desired bit
+        :param low: The rightmost desired bit
+        :param b: The binary string
+        :return: The decimal value corresponding to the bots extracted from the binary string
+        """
         mask_str = '0' * (31 - high) + '1' * (high - low + 1) + '0' * low
         mask_int = int(mask_str, 2)
-        return (inst & mask_int) >> low
+        return (b & mask_int) >> low
 
     @staticmethod
     def get_bin_spaced(inst_dec):
+        """
+        Spaces a 32-bit string into groups of 8, 3, 5, 5, 5, 6
+        :param inst_dec: The 32-bit binary string
+        :return: The same string but spaced into the desired groups
+        """
         inst_bin = '{0:032b}'.format(inst_dec)
         inst_spaced = ''
         for start, stop in zip(Disassemble.inst_spacing, Disassemble.inst_spacing[1:]):
             inst_spaced += inst_bin[start:stop] + ' '
         return inst_spaced
 
-    # opcode    Rm  shamt   Rn  Rd
-    # 11        5   6       5   5
-    def process_R(self, inst_dec, inst_name):
+    def __process_r(self, inst_dec, inst_name):
+        """
+        Disassembles an R-format ARM instruction
+            opcode    Rm  shamt   Rn  Rd
+            11        5   6       5   5
+        :param inst_dec: The decimal value of the 32-bit instruction
+        :param inst_name: The assembly name of the instruction
+        :return: A string containing the ARM assembly instruction
+        """
+        # Extract fields from machine instruction
         opcode = Disassemble.get_bits_range(31, 21, inst_dec)
         Rm = Disassemble.get_bits_range(20, 16, inst_dec)
         shamt = Disassemble.get_bits_range(15, 10, inst_dec)
         Rn = Disassemble.get_bits_range(9, 5, inst_dec)
         Rd = Disassemble.get_bits_range(4, 0, inst_dec)
 
-        self.processed_inst[self.address] = {
+        # Add instruction fields to data structure
+        self.__processed_inst[self.__address] = {
             'name': inst_name,
             'opcode': opcode,
             'Rm': Rm,
@@ -148,6 +168,7 @@ class Disassemble:
             'Rd': Rd
         }
 
+        # Return proper assembly instruction
         if inst_name == 'LSL' or inst_name == 'LSR':
             inst_str = '{}\tR{}, R{}, {}'.format(inst_name, Rd, Rn, shamt)
         else:
@@ -155,16 +176,24 @@ class Disassemble:
 
         return inst_str
 
-    # opcode    offset  op2 Rn  Rt
-    # 11        9       2   5   5
-    def process_D(self, inst_dec, inst_name):
+    def __process_d(self, inst_dec, inst_name):
+        """
+        Disassembles a D-format ARM instruction
+            opcode    offset  op2 Rn  Rt
+            11        9       2   5   5
+        :param inst_dec: The decimal value of the 32-bit instruction
+        :param inst_name: The assembly name of the instruction
+        :return: A string containing the ARM assembly instruction
+        """
+        # Extract fields from machine instruction
         opcode = Disassemble.get_bits_range(31, 21, inst_dec)
         offset = Disassemble.get_bits_range(20, 12, inst_dec)
         op2 = Disassemble.get_bits_range(11, 10, inst_dec)
         Rn = Disassemble.get_bits_range(9, 5, inst_dec)
         Rt = Disassemble.get_bits_range(4, 0, inst_dec)
 
-        self.processed_inst[self.address] = {
+        # Add instruction fields to data structure
+        self.__processed_inst[self.__address] = {
             'name': inst_name,
             'opcode': opcode,
             'offset': offset,
@@ -173,17 +202,26 @@ class Disassemble:
             'Rt': Rt
         }
 
+        # Return proper assembly instruction
         return '{}\tR{}, [R{}, #{}]'.format(inst_name, Rt, Rn, offset)
 
-    # opcode    immediate   Rn  Rd
-    # 10        12          5   5
-    def process_I(self, inst_dec, inst_name):
+    def __process_i(self, inst_dec, inst_name):
+        """
+        Disassembles an I-format ARM instruction
+            opcode    immediate   Rn  Rd
+            10        12          5   5
+        :param inst_dec: The decimal value of the 32-bit instruction
+        :param inst_name: The assembly name of the instruction
+        :return: A string containing the ARM assembly instruction
+        """
+        # Extract fields from machine instruction
         opcode = Disassemble.get_bits_range(31, 22, inst_dec)
         immediate = Disassemble.tc_to_dec('{0:012b}'.format(Disassemble.get_bits_range(21, 10, inst_dec)))
         Rn = Disassemble.get_bits_range(9, 5, inst_dec)
         Rd = Disassemble.get_bits_range(4, 0, inst_dec)
 
-        self.processed_inst[self.address] = {
+        # Add instruction fields to data structure
+        self.__processed_inst[self.__address] = {
             'name': inst_name,
             'opcode': opcode,
             'immediate': immediate,
@@ -191,47 +229,74 @@ class Disassemble:
             'Rd': Rd
         }
 
+        # Return proper assembly instruction
         return '{}\tR{}, R{}, #{}'.format(inst_name, Rd, Rn, immediate)
 
-    # opcode    address
-    # 6         26
-    def process_B(self, inst_dec, inst_name):
+    def __process_b(self, inst_dec, inst_name):
+        """
+        Disassembles a B-format ARM instruction
+            opcode    address
+            6         26
+        :param inst_dec: The decimal value of the 32-bit instruction
+        :param inst_name: The assembly name of the instruction
+        :return: A string containing the ARM assembly instruction
+        """
+        # Extract fields from machine instruction
         opcode = Disassemble.get_bits_range(31, 24, inst_dec)
         address = Disassemble.get_bits_range(23, 0, inst_dec)
 
-        self.processed_inst[self.address] = {
+        # Add instruction fields to data structure
+        self.__processed_inst[self.__address] = {
             'name': inst_name,
             'opcode': opcode,
             'address': address
         }
 
+        # Return proper assembly instruction
         return '{}\t#{}'.format(inst_name, address)
 
-    # opcode    offset      Rt
-    # 8         19          5
-    def process_CB(self, inst_dec, inst_name):
+    def __process_cb(self, inst_dec, inst_name):
+        """
+        Disassembles a CB-format ARM instruction
+            opcode    offset      Rt
+            8         19          5
+        :param inst_dec: The decimal value of the 32-bit instruction
+        :param inst_name: The assembly name of the instruction
+        :return: A string containing the ARM assembly instruction
+        """
+        # Extract fields from machine instruction
         opcode = Disassemble.get_bits_range(31, 24, inst_dec)
         offset = Disassemble.get_bits_range(23, 5, inst_dec)
         Rt = Disassemble.get_bits_range(4, 0, inst_dec)
 
-        self.processed_inst[self.address] = {
+        # Add instruction fields to data structure
+        self.__processed_inst[self.__address] = {
             'name': inst_name,
             'opcode': opcode,
             'offset': offset,
             'Rt': Rt
         }
 
-        return '{}\tR{}, R{}'.format(inst_name, Rt, offset)
+        # Return proper assembly instruction
+        return '{}\tR{}, #{}'.format(inst_name, Rt, offset)
 
-    # opcode        immediate   Rd
-    # 9         2   18          5
-    def process_IM(self, inst_dec, inst_name):
+    def __process_im(self, inst_dec, inst_name):
+        """
+        Disassembles a CB-format ARM instruction
+            opcode        immediate   Rd
+            9         2   18          5
+        :param inst_dec: The decimal value of the 32-bit instruction
+        :param inst_name: The assembly name of the instruction
+        :return: A string containing the ARM assembly instruction
+        """
+        # Extract fields from machine instruction
         opcode = Disassemble.get_bits_range(31, 23, inst_dec)
         shift = Disassemble.get_bits_range(22, 21, inst_dec)
         immediate = Disassemble.get_bits_range(20, 5, inst_dec)
         Rd = Disassemble.get_bits_range(4, 0, inst_dec)
 
-        self.processed_inst[self.address] = {
+        # Add instruction fields to data structure
+        self.__processed_inst[self.__address] = {
             'name': inst_name,
             'opcode': opcode,
             'shift': shift,
@@ -239,42 +304,78 @@ class Disassemble:
             'Rd': Rd
         }
 
+        # Return proper assembly instruction
         return '{}\tR{}, {}, LSL {}'.format(inst_name, Rd, immediate, shift * 16)
 
-    def process_NOP(self, inst_dec, inst_name):
-        bin_str = '{0:032b}'.format(inst_dec)
+    def __process_nop(self, inst_dec, inst_name):
+        """
+        Disassembles a NOP instruction
+            instruction
+            00000000000000000000000000000000
+            0x00000000
+        :param inst_dec: The decimal value of the 32-bit instruction
+        :param inst_name: The assembly name of the instruction
+        :return: A string containing the ARM assembly instruction
+        """
+        # If the instruction isn't all 0s, raise error because opcode is zero -> invalid instruction
         if inst_dec != 0:
-            raise ValueError('Invalid instruction on line {}: \'{}\''.format((self.address-96)/4, bin_str))
-        self.processed_inst[self.address] = {
-            'name': inst_name
-        }
-        return inst_name
+            bin_str = '{0:032b}'.format(inst_dec)
+            raise ValueError('Invalid instruction on line {}: \'{}\''.format((self.__address - 96) / 4, bin_str))
 
-    def process_BREAK(self, inst_dec, inst_name):
-        self.processed_inst[self.address] = {
+        # Add instruction fields to data structure
+        self.__processed_inst[self.__address] = {
             'name': inst_name
         }
 
+        # Return proper assembly instruction
         return inst_name
 
-    def process_data(self, dec):
+    def __process_break(self, inst_dec, inst_name):
+        """
+        Disassembles a BREAK instruction
+            instruction
+            0x11111110110111101111111111100111
+            0xFEDEFFE7
+        :param inst_dec: The decimal value of the 32-bit instruction
+        :param inst_name: The assembly name of the instruction
+        :return: A string containing the ARM assembly instruction
+        """
+        # Add instruction fields to data structure
+        self.__processed_inst[self.__address] = {
+            'name': inst_name
+        }
+
+        # Return proper assembly instruction
+        return inst_name
+
+    def __process_data(self, dec):
+        """
+        Process a 32-bit two's complement data value
+        :param dec: The unsigned decimal of the 32-bit data
+        :return: A string containing the 32-bit two's complement binary string, the address, and the signed decimal
+        value
+        """
         bin_str = '{0:032b}'.format(dec)
         tc_dec = Disassemble.tc_to_dec(bin_str)
 
-        self.processed_data[self.address] = tc_dec
+        # Add data to data structure
+        self.__processed_data[self.__address] = tc_dec
 
-        return '{}\t{}\t{}'.format(bin_str, self.address, tc_dec)
+        # Return string for output
+        return '{}\t{}\t{}'.format(bin_str, self.__address, tc_dec)
 
 
 if __name__ == "__main__":
     infile = ''
     outfile = ''
 
+    # Get in/out file from command line arguments
     for i in range(len(sys.argv)):
         if sys.argv[i] == '-i':
             infile = sys.argv[i + 1]
         elif sys.argv[i] == '-o':
             outfile = sys.argv[i + 1]
 
+    # Create disassembler and run
     d = Disassemble(infile, outfile)
     d.run()
