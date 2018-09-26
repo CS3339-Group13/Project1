@@ -22,8 +22,8 @@ class Disassemble:
         self.__address = 96       # Memory starting address
 
         self.opcode_dict = {
-            (0, 0)      : ['NOP', 'NOP'],
-            (160, 191)  : ['B', 'B'],
+            (0, 0): ['NOP', 'NOP'],
+            (160, 191): ['B', 'B'],
             (1104, 1104): ['R', 'AND'],
             (1112, 1112): ['R', 'ADD'],
             (1160, 1161): ['I', 'ADDI'],
@@ -58,7 +58,7 @@ class Disassemble:
         Reads the designated input file and stores each line as a decimal integer
         """
         line_num = 0
-        with open(self.__input_file) as f:
+        with open(self.__input_file, 'r') as f:
             for line in f:
                 line = line.rstrip('\n')
                 line_num += 1
@@ -145,7 +145,7 @@ class Disassemble:
     def __process_r(self, inst_dec, inst_name):
         """
         Disassembles an R-format ARM instruction
-            opcode    Rm  shamt   Rn  Rd
+            opcode    rm  shamt   rn  rd
             11        5   6       5   5
         :param inst_dec: The decimal value of the 32-bit instruction
         :param inst_name: The assembly name of the instruction
@@ -153,33 +153,33 @@ class Disassemble:
         """
         # Extract fields from machine instruction
         opcode = Disassemble.get_bits_range(31, 21, inst_dec)
-        Rm = Disassemble.get_bits_range(20, 16, inst_dec)
+        rm = Disassemble.get_bits_range(20, 16, inst_dec)
         shamt = Disassemble.get_bits_range(15, 10, inst_dec)
-        Rn = Disassemble.get_bits_range(9, 5, inst_dec)
-        Rd = Disassemble.get_bits_range(4, 0, inst_dec)
+        rn = Disassemble.get_bits_range(9, 5, inst_dec)
+        rd = Disassemble.get_bits_range(4, 0, inst_dec)
 
         # Add instruction fields to data structure
         self.__processed_inst[self.__address] = {
             'name': inst_name,
             'opcode': opcode,
-            'Rm': Rm,
+            'rm': rm,
             'shamt': shamt,
-            'Rn': Rn,
-            'Rd': Rd
+            'rn': rn,
+            'rd': rd
         }
 
         # Return proper assembly instruction
         if inst_name == 'LSL' or inst_name == 'LSR':
-            inst_str = '{}\tR{}, R{}, #{}'.format(inst_name, Rd, Rn, shamt)
+            inst_str = '{}\tR{}, R{}, #{}'.format(inst_name, rd, rn, shamt)
         else:
-            inst_str = '{}\tR{}, R{}, R{}'.format(inst_name, Rd, Rn, Rm)
+            inst_str = '{}\tR{}, R{}, R{}'.format(inst_name, rd, rn, rm)
 
         return inst_str
 
     def __process_d(self, inst_dec, inst_name):
         """
         Disassembles a D-format ARM instruction
-            opcode    offset  op2 Rn  Rt
+            opcode    offset  op2 rn  rt
             11        9       2   5   5
         :param inst_dec: The decimal value of the 32-bit instruction
         :param inst_name: The assembly name of the instruction
@@ -189,8 +189,8 @@ class Disassemble:
         opcode = Disassemble.get_bits_range(31, 21, inst_dec)
         offset = Disassemble.get_bits_range(20, 12, inst_dec)
         op2 = Disassemble.get_bits_range(11, 10, inst_dec)
-        Rn = Disassemble.get_bits_range(9, 5, inst_dec)
-        Rt = Disassemble.get_bits_range(4, 0, inst_dec)
+        rn = Disassemble.get_bits_range(9, 5, inst_dec)
+        rt = Disassemble.get_bits_range(4, 0, inst_dec)
 
         # Add instruction fields to data structure
         self.__processed_inst[self.__address] = {
@@ -198,17 +198,17 @@ class Disassemble:
             'opcode': opcode,
             'offset': offset,
             'op2': op2,
-            'Rn': Rn,
-            'Rt': Rt
+            'rn': rn,
+            'rt': rt
         }
 
         # Return proper assembly instruction
-        return '{}\tR{}, [R{}, #{}]'.format(inst_name, Rt, Rn, offset)
+        return '{}\tR{}, [R{}, #{}]'.format(inst_name, rt, rn, offset)
 
     def __process_i(self, inst_dec, inst_name):
         """
         Disassembles an I-format ARM instruction
-            opcode    immediate   Rn  Rd
+            opcode    immediate   rn  rd
             10        12          5   5
         :param inst_dec: The decimal value of the 32-bit instruction
         :param inst_name: The assembly name of the instruction
@@ -217,20 +217,20 @@ class Disassemble:
         # Extract fields from machine instruction
         opcode = Disassemble.get_bits_range(31, 22, inst_dec)
         immediate = Disassemble.tc_to_dec('{0:012b}'.format(Disassemble.get_bits_range(21, 10, inst_dec)))
-        Rn = Disassemble.get_bits_range(9, 5, inst_dec)
-        Rd = Disassemble.get_bits_range(4, 0, inst_dec)
+        rn = Disassemble.get_bits_range(9, 5, inst_dec)
+        rd = Disassemble.get_bits_range(4, 0, inst_dec)
 
         # Add instruction fields to data structure
         self.__processed_inst[self.__address] = {
             'name': inst_name,
             'opcode': opcode,
             'immediate': immediate,
-            'Rn': Rn,
-            'Rd': Rd
+            'rn': rn,
+            'rd': rd
         }
 
         # Return proper assembly instruction
-        return '{}\tR{}, R{}, #{}'.format(inst_name, Rd, Rn, immediate)
+        return '{}\tR{}, R{}, #{}'.format(inst_name, rd, rn, immediate)
 
     def __process_b(self, inst_dec, inst_name):
         """
@@ -258,7 +258,7 @@ class Disassemble:
     def __process_cb(self, inst_dec, inst_name):
         """
         Disassembles a CB-format ARM instruction
-            opcode    offset      Rt
+            opcode    offset      rt
             8         19          5
         :param inst_dec: The decimal value of the 32-bit instruction
         :param inst_name: The assembly name of the instruction
@@ -267,23 +267,23 @@ class Disassemble:
         # Extract fields from machine instruction
         opcode = Disassemble.get_bits_range(31, 24, inst_dec)
         offset = Disassemble.get_bits_range(23, 5, inst_dec)
-        Rt = Disassemble.get_bits_range(4, 0, inst_dec)
+        rt = Disassemble.get_bits_range(4, 0, inst_dec)
 
         # Add instruction fields to data structure
         self.__processed_inst[self.__address] = {
             'name': inst_name,
             'opcode': opcode,
             'offset': offset,
-            'Rt': Rt
+            'rt': rt
         }
 
         # Return proper assembly instruction
-        return '{}\tR{}, #{}'.format(inst_name, Rt, offset)
+        return '{}\tR{}, #{}'.format(inst_name, rt, offset)
 
     def __process_im(self, inst_dec, inst_name):
         """
         Disassembles a CB-format ARM instruction
-            opcode        immediate   Rd
+            opcode        immediate   rd
             9         2   18          5
         :param inst_dec: The decimal value of the 32-bit instruction
         :param inst_name: The assembly name of the instruction
@@ -293,7 +293,7 @@ class Disassemble:
         opcode = Disassemble.get_bits_range(31, 23, inst_dec)
         shift = Disassemble.get_bits_range(22, 21, inst_dec)
         immediate = Disassemble.get_bits_range(20, 5, inst_dec)
-        Rd = Disassemble.get_bits_range(4, 0, inst_dec)
+        rd = Disassemble.get_bits_range(4, 0, inst_dec)
 
         # Add instruction fields to data structure
         self.__processed_inst[self.__address] = {
@@ -301,11 +301,11 @@ class Disassemble:
             'opcode': opcode,
             'shift': shift,
             'immediate': immediate,
-            'Rd': Rd
+            'rd': rd
         }
 
         # Return proper assembly instruction
-        return '{}\tR{}, {}, LSL {}'.format(inst_name, Rd, immediate, shift * 16)
+        return '{}\tR{}, {}, LSL {}'.format(inst_name, rd, immediate, shift * 16)
 
     def __process_nop(self, inst_dec, inst_name):
         """
