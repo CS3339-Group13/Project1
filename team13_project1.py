@@ -78,7 +78,7 @@ class Disassemble:
             if not data:
                 out_file.write(Disassemble.get_bin_spaced(line) + '\t' + str(self.__address) + '\t')
 
-                opcode_dec = self.get_bits_range(31, 21, line)
+                opcode_dec = self.get_bits_as_decimal(31, 21, line)
 
                 # Loop through all known opcodes
                 for (low, high), inst_info in self.opcode_dict.items():
@@ -117,7 +117,7 @@ class Disassemble:
             return -1 * ((dec ^ int(mask_str, 2)) + 1)
 
     @staticmethod
-    def get_bits_range(high, low, b):
+    def get_bits_as_decimal(high, low, b, signed=False):
         """
         Extracts a range of bits from a binary string as a decimal integer
         :param high: The leftmost desired bit
@@ -127,7 +127,15 @@ class Disassemble:
         """
         mask_str = '0' * (31 - high) + '1' * (high - low + 1) + '0' * low
         mask_int = int(mask_str, 2)
-        return (b & mask_int) >> low
+        t1 = b & mask_int
+        out = t1 >> low
+        out_str = bin(out)[2:].zfill(high - low + 1)
+        # if negative number and signed
+        if out_str[0] == '1' and signed:
+            print('signed')
+            return Disassemble.tc_to_dec(out_str)
+        else:
+            return out
 
     @staticmethod
     def get_bin_spaced(inst_dec):
@@ -152,11 +160,11 @@ class Disassemble:
         :return: A string containing the ARM assembly instruction
         """
         # Extract fields from machine instruction
-        opcode = Disassemble.get_bits_range(31, 21, inst_dec)
-        rm = Disassemble.get_bits_range(20, 16, inst_dec)
-        shamt = Disassemble.get_bits_range(15, 10, inst_dec)
-        rn = Disassemble.get_bits_range(9, 5, inst_dec)
-        rd = Disassemble.get_bits_range(4, 0, inst_dec)
+        opcode = Disassemble.get_bits_as_decimal(31, 21, inst_dec)
+        rm = Disassemble.get_bits_as_decimal(20, 16, inst_dec)
+        shamt = Disassemble.get_bits_as_decimal(15, 10, inst_dec)
+        rn = Disassemble.get_bits_as_decimal(9, 5, inst_dec)
+        rd = Disassemble.get_bits_as_decimal(4, 0, inst_dec)
 
         # Add instruction fields to data structure
         self.__processed_inst[self.__address] = {
@@ -186,11 +194,11 @@ class Disassemble:
         :return: A string containing the ARM assembly instruction
         """
         # Extract fields from machine instruction
-        opcode = Disassemble.get_bits_range(31, 21, inst_dec)
-        offset = Disassemble.get_bits_range(20, 12, inst_dec)
-        op2 = Disassemble.get_bits_range(11, 10, inst_dec)
-        rn = Disassemble.get_bits_range(9, 5, inst_dec)
-        rt = Disassemble.get_bits_range(4, 0, inst_dec)
+        opcode = Disassemble.get_bits_as_decimal(31, 21, inst_dec)
+        offset = Disassemble.get_bits_as_decimal(20, 12, inst_dec)
+        op2 = Disassemble.get_bits_as_decimal(11, 10, inst_dec)
+        rn = Disassemble.get_bits_as_decimal(9, 5, inst_dec)
+        rt = Disassemble.get_bits_as_decimal(4, 0, inst_dec)
 
         # Add instruction fields to data structure
         self.__processed_inst[self.__address] = {
@@ -215,10 +223,10 @@ class Disassemble:
         :return: A string containing the ARM assembly instruction
         """
         # Extract fields from machine instruction
-        opcode = Disassemble.get_bits_range(31, 22, inst_dec)
-        immediate = Disassemble.tc_to_dec('{0:012b}'.format(Disassemble.get_bits_range(21, 10, inst_dec)))
-        rn = Disassemble.get_bits_range(9, 5, inst_dec)
-        rd = Disassemble.get_bits_range(4, 0, inst_dec)
+        opcode = Disassemble.get_bits_as_decimal(31, 22, inst_dec)
+        immediate = Disassemble.tc_to_dec('{0:012b}'.format(Disassemble.get_bits_as_decimal(21, 10, inst_dec)))
+        rn = Disassemble.get_bits_as_decimal(9, 5, inst_dec)
+        rd = Disassemble.get_bits_as_decimal(4, 0, inst_dec)
 
         # Add instruction fields to data structure
         self.__processed_inst[self.__address] = {
@@ -242,8 +250,8 @@ class Disassemble:
         :return: A string containing the ARM assembly instruction
         """
         # Extract fields from machine instruction
-        opcode = Disassemble.get_bits_range(31, 24, inst_dec)
-        address = Disassemble.get_bits_range(23, 0, inst_dec)
+        opcode = Disassemble.get_bits_as_decimal(31, 24, inst_dec)
+        address = Disassemble.get_bits_as_decimal(23, 0, inst_dec, signed=True)
 
         # Add instruction fields to data structure
         self.__processed_inst[self.__address] = {
@@ -265,9 +273,9 @@ class Disassemble:
         :return: A string containing the ARM assembly instruction
         """
         # Extract fields from machine instruction
-        opcode = Disassemble.get_bits_range(31, 24, inst_dec)
-        offset = Disassemble.get_bits_range(23, 5, inst_dec)
-        rt = Disassemble.get_bits_range(4, 0, inst_dec)
+        opcode = Disassemble.get_bits_as_decimal(31, 24, inst_dec)
+        offset = Disassemble.get_bits_as_decimal(23, 5, inst_dec, signed=True)
+        rt = Disassemble.get_bits_as_decimal(4, 0, inst_dec)
 
         # Add instruction fields to data structure
         self.__processed_inst[self.__address] = {
@@ -290,10 +298,10 @@ class Disassemble:
         :return: A string containing the ARM assembly instruction
         """
         # Extract fields from machine instruction
-        opcode = Disassemble.get_bits_range(31, 23, inst_dec)
-        shift = Disassemble.get_bits_range(22, 21, inst_dec)
-        immediate = Disassemble.get_bits_range(20, 5, inst_dec)
-        rd = Disassemble.get_bits_range(4, 0, inst_dec)
+        opcode = Disassemble.get_bits_as_decimal(31, 23, inst_dec)
+        shift = Disassemble.get_bits_as_decimal(22, 21, inst_dec)
+        immediate = Disassemble.get_bits_as_decimal(20, 5, inst_dec)
+        rd = Disassemble.get_bits_as_decimal(4, 0, inst_dec)
 
         # Add instruction fields to data structure
         self.__processed_inst[self.__address] = {
