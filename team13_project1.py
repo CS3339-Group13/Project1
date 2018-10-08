@@ -132,7 +132,6 @@ class Disassemble:
         out_str = bin(out)[2:].zfill(high - low + 1)
         # if negative number and signed
         if out_str[0] == '1' and signed:
-            print('signed')
             return Disassemble.tc_to_dec(out_str)
         else:
             return out
